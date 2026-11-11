@@ -404,7 +404,7 @@ function demoSlots(repKey){
 }
 function demoBook(repKey, iso){
   const s = new Date(iso), r = REPS.find(x => x.key === repKey);
-  return { booked:true, start: s.toISOString(), end: new Date(s.getTime()+30*60000).toISOString(), rep: r ? r.name : '', meet:'https://meet.google.com/abc-defg-hij' };
+  return { booked:true, start: s.toISOString(), end: new Date(s.getTime()+30*60000).toISOString(), rep: r ? r.name : '', meet:'', phone: state.data && state.data.phone };
 }
 
 /* ---------- step 1 ---------- */
@@ -645,7 +645,7 @@ function renderSlots(msg){
         <span class="dm">${MONTHS[d.d.getMonth()]}</span></button>`).join('')}</div>
     <div class="times">${today.map(s => `<button type="button" class="time ${state.slot && +state.slot===+s?'on':''}" data-t="${s.toISOString()}">${fmtTime(s)}</button>`).join('')}</div>
     <div class="confirm" id="confirmBar" ${state.slot ? '' : 'hidden'}>
-      <p>${state.slot ? `<b>${state.slot.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })}</b> at <b>${fmtTime(state.slot)}</b> with ${esc(r.name)}` : ''}</p>
+      <p>${state.slot ? `<b>${state.slot.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })}</b> at <b>${fmtTime(state.slot)}</b>. ${esc(r.name.split(' ')[0])} will call you at <b>${esc(state.data.phone)}</b>.` : ''}</p>
       <button class="btn primary" type="button" id="confirmBtn">Confirm booking</button></div>`;
   $$('#bookWrap .day').forEach(b => b.addEventListener('click', () => { state.slotDay = b.dataset.k; state.slot = null; renderSlots(); }));
   $$('#bookWrap .time').forEach(b => b.addEventListener('click', () => { state.slot = new Date(b.dataset.t); renderSlots(); $('#confirmBar').scrollIntoView({ behavior:'smooth', block:'nearest' }); }));
@@ -676,7 +676,7 @@ function finish(res){
   const done = {
     leadId: state.leadId, rep: res.rep || '', start: res.start || '', end: res.end || '', meet: res.meet || '',
     pending: !!res.pending, unconfirmed: !!res.unconfirmed,
-    program: d.programName, contact: d.contactName, email: d.email,
+    program: d.programName, contact: d.contactName, email: d.email, phone: res.phone || '',
     leagues: chosen().map(l => ({ label: LEAGUES[l].label, picks: pickList(l).map(e => e.name + ' · ' + e.loc.replace(/ \(.*\)/,'')) })),
     savedAt: Date.now()
   };
@@ -693,7 +693,7 @@ function renderDone(b){
       <div class="cal"><div class="mo">${MONTHS[s.getMonth()]}</div><div class="dy">${s.getDate()}</div></div>
       <div><div class="when">${s.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })}</div>
         <div class="when" style="font-size:20px;opacity:.9">${t(s)}${e ? ' – ' + t(e) : ''} ${tz}</div>
-        <div class="who">Call with ${esc(b.rep)}${b.meet ? ' · Google Meet' : ''}</div>
+        <div class="who">${b.phone ? 'Phone call · ' + esc(b.rep) + ' will call you at ' + esc(b.phone) : 'Call with ' + esc(b.rep) + (b.meet ? ' · Google Meet' : '')}</div>
         ${b.meet ? `<a class="btn" href="${esc(b.meet)}" target="_blank" rel="noopener">Meeting link ↗</a>` : ''}</div>
     </div>` : `
     <div class="meeting"><div class="cal"><div class="mo">CALL</div><div class="dy">✓</div></div>
@@ -702,11 +702,11 @@ function renderDone(b){
   $('#step4').innerHTML = `
     <div class="done-badge">✓ ${b.pending ? 'Application received' : 'Call booked'}</div>
     <h2>You're All Set</h2>
-    <p class="sub">${s ? `A calendar invite with the meeting link was sent to <b>${esc(b.email)}</b>. Need a different time? Reply to that invite and we'll move it.` : `We have your application. Watch <b>${esc(b.email)}</b> for next steps.`}</p>
+    <p class="sub">${s ? `A calendar invite was sent to <b>${esc(b.email)}</b>.${b.phone ? ' ' + esc(String(b.rep).split(' ')[0]) + ' will call you at <b>' + esc(b.phone) + '</b> at that time.' : ''} Need a different time? Reply to that invite and we'll move it.` : `We have your application. Watch <b>${esc(b.email)}</b> for next steps.`}</p>
     ${meeting}
     <div class="recap">
       <div><small>Program</small>${esc(b.program)}</div>
-      <div><small>Contact</small>${esc(b.contact)}</div>
+      <div><small>Contact</small>${esc(b.contact)}${b.phone ? ' · ' + esc(b.phone) : ''}</div>
       ${(b.leagues||[]).map(l => `<div><small>${esc(l.label)} regionals</small>${esc(l.picks.join(', '))}</div>`).join('')}
     </div>
     <div class="sec-h3">What happens next</div>
