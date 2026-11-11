@@ -164,6 +164,30 @@
   .book-cta{border:1.5px dashed #A7C8EA;border-radius:12px;padding:26px;text-align:center;background:var(--sky)}
   .book-cta p{margin:0 0 14px;color:var(--muted);font-size:14px}
 
+  .finish{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--bg);border-radius:12px;padding:14px 16px;margin-top:12px}
+  .finish p{margin:0;font-size:14px;color:var(--muted)}
+  .finish p b{color:var(--ink)}
+  .finish .btn{padding:11px 18px;font-size:14px}
+  .btn.line{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
+  .finish-msg{font-size:13px;color:var(--warn);margin-top:8px;display:none}
+  .finish-msg.show{display:block}
+  .watch{display:inline-flex;align-items:center;gap:8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--blue);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
+  .meeting{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;background:var(--navy);color:#fff;border-radius:14px;padding:20px;margin:6px 0 20px}
+  .meeting .cal{background:#fff;color:var(--navy);border-radius:10px;text-align:center;min-width:78px;overflow:hidden}
+  .meeting .cal .mo{background:var(--blue);color:#fff;font-size:11px;font-weight:700;letter-spacing:.14em;padding:4px 0}
+  .meeting .cal .dy{font-family:"Barlow Condensed";font-weight:800;font-size:38px;line-height:1.1;padding:2px 0 6px}
+  .meeting .when{font-family:"Barlow Condensed";font-weight:800;text-transform:uppercase;font-size:26px;line-height:1.05}
+  .meeting .who{color:#BBD3EE;font-size:14px;margin-top:4px}
+  .meeting .btn{margin-top:12px;background:#fff;color:var(--navy);padding:10px 16px;font-size:14px}
+  .next{margin:0;padding:0;list-style:none;display:grid;gap:10px;counter-reset:n}
+  .next li{display:grid;grid-template-columns:28px 1fr;gap:10px;font-size:14px;line-height:1.45;counter-increment:n}
+  .next li::before{content:counter(n);width:26px;height:26px;border-radius:50%;background:var(--sky);color:var(--blue);font-weight:700;font-size:13px;display:grid;place-items:center}
+  .next li.done::before{content:"✓";background:#E3F5EC;color:var(--ok)}
+  .sec-h3{font-family:"Barlow Condensed";font-weight:800;text-transform:uppercase;font-size:20px;margin:22px 0 10px;color:var(--navy)}
+  @media (prefers-reduced-motion:reduce){.dot{animation:none}}
+
   @media (max-width:640px){
     .card{padding:20px}
     .grid{grid-template-columns:1fr 1fr}
@@ -285,6 +309,8 @@
       <button class="btn ghost" type="button" id="back3">← Back to the circuit</button>
     </div>
   </section>
+  <!-- STEP 4: booked -->
+  <section class="card step" id="step4"></section>
 </main>
 
 <script>
@@ -342,9 +368,17 @@ function call(fn, ...args){
       .then(j => { if (!j.ok) throw new Error(j.error || 'Request failed'); return j.result; });
   }
   return new Promise((res, rej) => {
-    if (!hasGAS){ setTimeout(() => res(fn==='submitLead' ? {id: args[1] || 'P32-DEMO-0001'} : true), 600); return; }
+    if (!hasGAS){ setTimeout(() => res(fn==='submitLead' ? {id: args[1] || 'P32-DEMO-0001'} : fn==='checkBooking' ? demoBooking(args[1]) : true), 600); return; }
     google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args);
   });
+}
+
+// Preview only: pretend a call was booked tomorrow at 2 PM when "I've booked my call" is pressed.
+function demoBooking(opts){
+  if (!(opts && opts.manual)) return { booked:false };
+  const s = new Date(); s.setDate(s.getDate()+1); s.setHours(14,0,0,0);
+  const rep = REPS.find(r => r.key === state.repKey);
+  return { booked:true, start:s.toISOString(), end:new Date(s.getTime()+30*60000).toISOString(), rep: rep ? rep.name : '', meet:'' };
 }
 
 /* ---------- step 1 ---------- */
@@ -556,20 +590,119 @@ function pickRep(k){
   $('#bookWrap').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 function renderCalendar(){
+  stopWatching();
   const r = REPS.find(x => x.key === state.repKey);
   if (!r){ $('#bookWrap').innerHTML = ''; return; }
   const c = calLinks(r.calendar), first = esc(r.name.split(' ')[0]);
+  const finishBar = `<div class="finish"><p class="watch"><span class="dot"></span><span>Pick a time and press <b>Book</b>. This page will update when your call is booked.</span></p>
+      <button class="btn line" type="button" id="doneBtn">I've booked my call</button></div>
+    <div class="finish-msg" id="finishMsg"></div>`;
   if (c.embed){
     $('#bookWrap').innerHTML = `<div class="book-head"><h3>Pick a time with ${first}</h3><a href="${esc(c.open)}" target="_blank" rel="noopener">Open in a new tab ↗</a></div>
-      <iframe class="book-frame" src="${esc(c.embed)}" title="Book a call with ${esc(r.name)}"></iframe>`;
+      <iframe class="book-frame" src="${esc(c.embed)}" title="Book a call with ${esc(r.name)}"></iframe>${finishBar}`;
   } else if (c.open){
-    $('#bookWrap').innerHTML = `<div class="book-cta"><p>${first}'s calendar opens in a new tab. Choose any open slot.</p>
-      <a class="btn primary" href="${esc(c.open)}" target="_blank" rel="noopener">Choose a time with ${first} →</a></div>`;
+    $('#bookWrap').innerHTML = `<div class="book-cta"><p>${first}'s calendar opens in a new tab. Choose any open slot, then come back here.</p>
+      <a class="btn primary" href="${esc(c.open)}" target="_blank" rel="noopener">Choose a time with ${first} →</a></div>${finishBar}`;
   } else {
-    $('#bookWrap').innerHTML = `<div class="book-cta"><p>${esc(r.name)}'s calendar isn't online yet. ${first} will reach out to you directly to set up a time.</p></div>`;
+    $('#bookWrap').innerHTML = `<div class="book-cta"><p>${esc(r.name)}'s calendar isn't online yet. ${first} will reach out to you directly to set up a time.</p>
+      <button class="btn primary" type="button" id="finishNoCal">Finish my application</button></div>`;
+    $('#finishNoCal').addEventListener('click', () => finish({ booked:false, rep:r.name, pending:true }));
+    return;
   }
+  $('#doneBtn').addEventListener('click', manualCheck);
+  startWatching();
 }
-$('#back3').addEventListener('click', () => go(2));
+
+/* Watch for the booking: the calendar lives on Google's site, so we ask the Sheet script
+   whether this applicant's call is on the rep's calendar yet. */
+let watchTimer = null, watchCount = 0, confirmTries = 0;
+function startWatching(){
+  watchCount = 0;
+  watchTimer = setInterval(async () => {
+    if (document.hidden) return;
+    if (++watchCount > 120){ stopWatching(); return; }   // ~30 minutes
+    try { const res = await call('checkBooking', state.leadId); if (res && res.booked) finish(res); } catch(e){}
+  }, 15000);
+}
+function stopWatching(){ if (watchTimer){ clearInterval(watchTimer); watchTimer = null; } }
+async function manualCheck(){
+  const btn = $('#doneBtn'), msg = $('#finishMsg');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    const res = await call('checkBooking', state.leadId, { manual:true });
+    if (res && res.booked) return finish(res);
+    confirmTries++;
+    msg.innerHTML = confirmTries < 2
+      ? `We don't see your booking yet. Make sure you picked a time and pressed <b>Book</b> on the calendar, then try again.`
+      : `Still not showing on our side. If you got a confirmation email from Google Calendar, you're set. <button class="btn ghost" type="button" id="forceFinish" style="padding:0;font-size:13px;color:var(--blue)">Finish anyway →</button>`;
+    msg.classList.add('show');
+    $('#forceFinish')?.addEventListener('click', () => finish({ booked:false, rep: (REPS.find(x=>x.key===state.repKey)||{}).name, unconfirmed:true }));
+  } catch(e){
+    msg.textContent = 'Could not check right now. Please try again in a moment.'; msg.classList.add('show');
+  } finally { btn.disabled = false; btn.textContent = "I've booked my call"; }
+}
+
+/* ---------- step 4: booked ---------- */
+const STORE_KEY = 'p32-apply-booking';
+function finish(res){
+  stopWatching();
+  const d = state.data || {};
+  const done = {
+    leadId: state.leadId, rep: res.rep || '', start: res.start || '', end: res.end || '', meet: res.meet || '',
+    pending: !!res.pending, unconfirmed: !!res.unconfirmed,
+    program: d.programName, contact: d.contactName, email: d.email,
+    leagues: chosen().map(l => ({ label: LEAGUES[l].label, picks: pickList(l).map(e => e.name + ' · ' + e.loc.replace(/ \(.*\)/,'')) })),
+    savedAt: Date.now()
+  };
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(done)); } catch(e){}
+  renderDone(done); go(4);
+}
+function renderDone(b){
+  const s = b.start ? new Date(b.start) : null, e = b.end ? new Date(b.end) : null;
+  const t = x => x.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+  const tz = s ? (s.toLocaleTimeString([], { timeZoneName:'short' }).split(' ').pop()) : '';
+  const first = esc(String(b.rep || 'our team').split(' ')[0]);
+  const meeting = s ? `
+    <div class="meeting">
+      <div class="cal"><div class="mo">${MONTHS[s.getMonth()]}</div><div class="dy">${s.getDate()}</div></div>
+      <div><div class="when">${s.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })}</div>
+        <div class="when" style="font-size:20px;opacity:.9">${t(s)}${e ? ' – ' + t(e) : ''} ${tz}</div>
+        <div class="who">Call with ${esc(b.rep)}${b.meet ? ' · Google Meet' : ''}</div>
+        ${b.meet ? `<a class="btn" href="${esc(b.meet)}" target="_blank" rel="noopener">Meeting link ↗</a>` : ''}</div>
+    </div>` : `
+    <div class="meeting"><div class="cal"><div class="mo">CALL</div><div class="dy">✓</div></div>
+      <div><div class="when">${b.pending ? first + ' will reach out' : 'Call requested'}</div>
+        <div class="who">${b.pending ? esc(b.rep) + ' will contact you to set a time.' : 'Your call with ' + esc(b.rep) + ' is in your Google Calendar confirmation email.'}</div></div></div>`;
+  $('#step4').innerHTML = `
+    <div class="done-badge">✓ ${b.pending ? 'Application received' : 'Call booked'}</div>
+    <h2>You're All Set</h2>
+    <p class="sub">${s ? `A calendar invite was sent to <b>${esc(b.email)}</b>. To change your time, use the reschedule link in that email.` : `We have your application. Watch <b>${esc(b.email)}</b> for next steps.`}</p>
+    ${meeting}
+    <div class="recap">
+      <div><small>Program</small>${esc(b.program)}</div>
+      <div><small>Contact</small>${esc(b.contact)}</div>
+      ${(b.leagues||[]).map(l => `<div><small>${esc(l.label)} regionals</small>${esc(l.picks.join(', '))}</div>`).join('')}
+    </div>
+    <div class="sec-h3">What happens next</div>
+    <ol class="next">
+      <li class="done">You applied and chose your potential schedule.</li>
+      <li${s ? ' class="done"' : ''}>${s ? 'Your call with ' + esc(b.rep) + ' is booked.' : 'Set your meeting with ' + esc(b.rep || 'P32 staff') + '.'}</li>
+      <li>Circuit staff meet and interview, then follow up with an approval meeting.</li>
+      <li>If accepted, you'll be sent a contract. Sign it and pay the administration fee to lock in your program for the circuit.</li>
+    </ol>`;
+}
+// Already booked in this browser? Show the recap instead of the form.
+(function restore(){
+  let b = null;
+  try { b = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch(e){}
+  if (!b) return;
+  const ends = b.end ? new Date(b.end).getTime() + 864e5 : b.savedAt + 30*864e5;
+  if (Date.now() > ends){ try { localStorage.removeItem(STORE_KEY); } catch(e){} return; }
+  renderDone(b);
+  $$('.step').forEach(s => s.classList.toggle('on', s.id === 'step4'));
+  $$('#stepper .s').forEach(s => { s.classList.remove('on'); s.classList.add('done'); });
+})();
+$('#back3').addEventListener('click', () => { stopWatching(); go(2); });
 
 /* ---------- nav ---------- */
 function go(n){
