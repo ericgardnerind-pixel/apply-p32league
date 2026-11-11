@@ -164,6 +164,25 @@
   .book-cta{border:1.5px dashed #A7C8EA;border-radius:12px;padding:26px;text-align:center;background:var(--sky)}
   .book-cta p{margin:0 0 14px;color:var(--muted);font-size:14px}
 
+  .tzl{font-size:12.5px;color:var(--muted)}
+  .slot-load{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;padding:18px 0}
+  .slot-msg{background:#FFF4E5;color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13.5px;margin:0 0 12px}
+  .days{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin:0 -2px 6px;scroll-snap-type:x proximity}
+  .day{flex:none;width:64px;border:1.5px solid var(--line);border-radius:12px;background:#fff;padding:8px 0;cursor:pointer;font:inherit;display:flex;flex-direction:column;align-items:center;gap:1px;scroll-snap-align:start;transition:all .15s}
+  .day .dw{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .day .dd{font-family:"Barlow Condensed";font-weight:800;font-size:24px;line-height:1.05;color:var(--navy)}
+  .day .dm{font-size:10.5px;font-weight:700;letter-spacing:.1em;color:var(--muted)}
+  .day:hover{border-color:#A7C8EA}
+  .day.on{background:var(--navy);border-color:var(--navy)}
+  .day.on .dw,.day.on .dm{color:#9CC8F2}.day.on .dd{color:#fff}
+  .times{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin-bottom:12px}
+  .time{border:1.5px solid #A7C8EA;border-radius:10px;background:#fff;color:var(--blue);font:inherit;font-weight:700;font-size:14px;padding:11px 6px;cursor:pointer;font-variant-numeric:tabular-nums;transition:all .12s}
+  .time:hover{background:var(--sky)}
+  .time.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .day:focus-visible,.time:focus-visible{outline:3px solid var(--blue-2);outline-offset:2px}
+  .confirm{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--sky);border:1.5px solid var(--blue);border-radius:12px;padding:14px 16px}
+  .confirm[hidden]{display:none}
+  .confirm p{margin:0;font-size:14.5px}
   .finish{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:var(--bg);border-radius:12px;padding:14px 16px;margin-top:12px}
   .finish p{margin:0;font-size:14px;color:var(--muted)}
   .finish p b{color:var(--ink)}
@@ -301,7 +320,7 @@
   <section class="card step" id="step3">
     <div class="done-badge">✓ Info received</div>
     <h2>Book Your Call</h2>
-    <p class="sub">Choose who you'd like to talk with, then pick a time on their calendar. We'll walk through pricing, your regional stops, and next steps in the application.</p>
+    <p class="sub">Choose who you'd like to talk with, then pick a time. We'll walk through pricing, your regional stops, and next steps in the application.</p>
     <div class="recap" id="recap"></div>
     <div id="reps"></div>
     <div id="bookWrap"></div>
@@ -368,17 +387,24 @@ function call(fn, ...args){
       .then(j => { if (!j.ok) throw new Error(j.error || 'Request failed'); return j.result; });
   }
   return new Promise((res, rej) => {
-    if (!hasGAS){ setTimeout(() => res(fn==='submitLead' ? {id: args[1] || 'P32-DEMO-0001'} : fn==='checkBooking' ? demoBooking(args[1]) : true), 600); return; }
+    if (!hasGAS){ setTimeout(() => res(fn==='submitLead' ? {id: args[1] || 'P32-DEMO-0001'} : fn==='getSlots' ? demoSlots(args[1]) : fn==='bookSlot' ? demoBook(args[1], args[2]) : true), 600); return; }
     google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args);
   });
 }
 
-// Preview only: pretend a call was booked tomorrow at 2 PM when "I've booked my call" is pressed.
-function demoBooking(opts){
-  if (!(opts && opts.manual)) return { booked:false };
-  const s = new Date(); s.setDate(s.getDate()+1); s.setHours(14,0,0,0);
-  const rep = REPS.find(r => r.key === state.repKey);
-  return { booked:true, start:s.toISOString(), end:new Date(s.getTime()+30*60000).toISOString(), rep: rep ? rep.name : '', meet:'' };
+// Preview only (no ENDPOINT): fake open times for Eric, weekdays 10 AM–5 PM, starting tomorrow.
+function demoSlots(repKey){
+  if (repKey !== 'ERIC') return { unavailable:true };
+  const out = [], d = new Date(); d.setHours(0,0,0,0);
+  for (let i = 1; out.length < 60; i++){
+    const day = new Date(d.getTime() + i*864e5); if (day.getDay()===0 || day.getDay()===6) continue;
+    for (let h = 10; h < 17; h += 0.5){ if (Math.random() < .25) continue; const s = new Date(day); s.setHours(Math.floor(h), h%1 ? 30 : 0); out.push(s.toISOString()); }
+  }
+  return { slots: out, minutes: 30, rep: 'Eric Gardner' };
+}
+function demoBook(repKey, iso){
+  const s = new Date(iso), r = REPS.find(x => x.key === repKey);
+  return { booked:true, start: s.toISOString(), end: new Date(s.getTime()+30*60000).toISOString(), rep: r ? r.name : '', meet:'https://meet.google.com/abc-defg-hij' };
 }
 
 /* ---------- step 1 ---------- */
@@ -543,30 +569,14 @@ function selectionPayload(extra){
 }
 
 /* ---------- step 3 ---------- */
-/*
- * Sales staff shown on the booking step. For each person, paste their Google Calendar
- * appointment schedule into `calendar`:
- *   Google Calendar → their appointment schedule → Share → "Website embed" → Inline schedule → Copy.
- * You can paste the whole <iframe ...> code or just its src link. Those links show the calendar
- * right on this page. A short calendar.app.google link also works, but opens in a new tab.
- */
+/* Sales staff on the booking step. `key` must match REPS in the Apps Script (Code.gs),
+   which holds each person's email, hours and calendar. */
 const REPS = [
-  { key:'ERIC',   name:'Eric Gardner',    role:'P32 & E32 Sales', group:'P32', calendar:'https://calendar.google.com/calendar/appointments/schedules/AcZssZ1D28OBuyYezwIMKzlDfLcw5QiL1BrFdOBPegkRTKHlBR5i774NOOF3_MHwPzJGoqHEW4SMHqpz?gv=true' },
-  { key:'AARON',  name:'Aaron Sandridge', role:'P32 & E32 Sales', group:'P32', calendar:'' },
-  { key:'GERALD', name:'Gerald Liddell',  role:'Jr. P32 Sales',   group:'JR',  calendar:'' },
-  { key:'VIC',    name:'Vic Calhoun',     role:'Jr. P32 Sales',   group:'JR',  calendar:'' }
+  { key:'ERIC',   name:'Eric Gardner',    role:'P32 & E32 Sales', group:'P32' },
+  { key:'AARON',  name:'Aaron Sandridge', role:'P32 & E32 Sales', group:'P32' },
+  { key:'GERALD', name:'Gerald Liddell',  role:'Jr. P32 Sales',   group:'JR'  },
+  { key:'VIC',    name:'Vic Calhoun',     role:'Jr. P32 Sales',   group:'JR'  }
 ];
-function calLinks(raw){
-  raw = String(raw || '').trim();
-  const m = raw.match(/src=["']([^"']+)["']/i); if (m) raw = m[1];
-  raw = raw.replace(/&amp;/g,'&');
-  if (!/^https:\/\//.test(raw)) return { embed:'', open:'' };
-  if (/calendar\.google\.com\/calendar\/appointments\//.test(raw)){
-    const embed = /[?&]gv=true/.test(raw) ? raw : raw + (raw.includes('?') ? '&' : '?') + 'gv=true';
-    return { embed, open: raw.replace(/[?&]gv=true/,'') };
-  }
-  return { embed:'', open: raw };
-}
 function renderBooking(){
   const ls = chosen(), d = state.data;
   $('#recap').innerHTML = `
@@ -581,66 +591,82 @@ function renderBooking(){
       <div class="rep-grid">${REPS.filter(r=>r.group===g).map(card).join('')}</div></div>`;
   $('#reps').innerHTML = group('P32','P32 & E32 Sales',['P32','E32']) + group('JR','Jr. P32 Sales',['JR']);
   $$('#reps .rep').forEach(b => b.addEventListener('click', () => pickRep(b.dataset.k)));
-  renderCalendar();
 }
 function pickRep(k){
-  state.repKey = k;
+  if (state.booking) return;
+  state.repKey = k; state.slotDay = null; state.slot = null;
   call('saveSelections', state.leadId, selectionPayload({ repKey:k })).catch(()=>{});
   renderBooking();
+  loadSlots();
   $('#bookWrap').scrollIntoView({ behavior:'smooth', block:'start' });
 }
-function renderCalendar(){
-  stopWatching();
-  const r = REPS.find(x => x.key === state.repKey);
-  if (!r){ $('#bookWrap').innerHTML = ''; return; }
-  const c = calLinks(r.calendar), first = esc(r.name.split(' ')[0]);
-  const finishBar = `<div class="finish"><p class="watch"><span class="dot"></span><span>Pick a time and press <b>Book</b>. This page will update when your call is booked.</span></p>
-      <button class="btn line" type="button" id="doneBtn">I've booked my call</button></div>
-    <div class="finish-msg" id="finishMsg"></div>`;
-  if (c.embed){
-    $('#bookWrap').innerHTML = `<div class="book-head"><h3>Pick a time with ${first}</h3><a href="${esc(c.open)}" target="_blank" rel="noopener">Open in a new tab ↗</a></div>
-      <iframe class="book-frame" src="${esc(c.embed)}" title="Book a call with ${esc(r.name)}"></iframe>${finishBar}`;
-  } else if (c.open){
-    $('#bookWrap').innerHTML = `<div class="book-cta"><p>${first}'s calendar opens in a new tab. Choose any open slot, then come back here.</p>
-      <a class="btn primary" href="${esc(c.open)}" target="_blank" rel="noopener">Choose a time with ${first} →</a></div>${finishBar}`;
-  } else {
-    $('#bookWrap').innerHTML = `<div class="book-cta"><p>${esc(r.name)}'s calendar isn't online yet. ${first} will reach out to you directly to set up a time.</p>
-      <button class="btn primary" type="button" id="finishNoCal">Finish my application</button></div>`;
+
+/* Open times come from the rep's real Google Calendar via the Apps Script.
+   Times are shown in the visitor's own time zone. */
+const dayKey = d => d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+const fmtTime = d => d.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+const tzName = () => { try { return new Date().toLocaleTimeString([], { timeZoneName:'short' }).split(' ').pop(); } catch(e){ return ''; } };
+async function loadSlots(msg){
+  const r = REPS.find(x => x.key === state.repKey), first = esc(r.name.split(' ')[0]);
+  const k = state.repKey;
+  $('#bookWrap').innerHTML = `<div class="book-head"><h3>Pick a time with ${first}</h3></div><div class="slot-load"><span class="dot"></span> Loading ${first}'s open times…</div>`;
+  let res;
+  try { res = await call('getSlots', state.leadId, k); }
+  catch(e){
+    if (state.repKey !== k) return;
+    $('#bookWrap').innerHTML = `<div class="book-cta"><p>We couldn't load open times. Please try again. (${esc(e.message || e)})</p><button class="btn primary" type="button" id="retrySlots">Try again</button></div>`;
+    $('#retrySlots').addEventListener('click', () => loadSlots()); return;
+  }
+  if (state.repKey !== k) return;            // they picked someone else while this loaded
+  if (res.booked) return finish(res.booked);   // already booked earlier
+  if (res.unavailable || !res.slots || !res.slots.length){
+    $('#bookWrap').innerHTML = `<div class="book-cta"><p>${res.unavailable ? esc(r.name) + ' isn\'t taking online bookings yet.' : first + ' has no open times in the next few weeks.'} You can pick someone else above, or finish and ${first} will reach out to set a time.</p>
+      <button class="btn primary" type="button" id="finishNoCal">Finish and have ${first} reach out</button></div>`;
     $('#finishNoCal').addEventListener('click', () => finish({ booked:false, rep:r.name, pending:true }));
     return;
   }
-  $('#doneBtn').addEventListener('click', manualCheck);
-  startWatching();
+  state.slots = res.slots.map(s => new Date(s));
+  state.minutes = res.minutes || 30;
+  if (!state.slotDay || !state.slots.some(s => dayKey(s) === state.slotDay)) state.slotDay = dayKey(state.slots[0]);
+  renderSlots(msg);
 }
-
-/* Watch for the booking: the calendar lives on Google's site, so we ask the Sheet script
-   whether this applicant's call is on the rep's calendar yet. */
-let watchTimer = null, watchCount = 0, confirmTries = 0;
-function startWatching(){
-  watchCount = 0;
-  watchTimer = setInterval(async () => {
-    if (document.hidden) return;
-    if (++watchCount > 120){ stopWatching(); return; }   // ~30 minutes
-    try { const res = await call('checkBooking', state.leadId); if (res && res.booked) finish(res); } catch(e){}
-  }, 15000);
+function renderSlots(msg){
+  const r = REPS.find(x => x.key === state.repKey), first = esc(r.name.split(' ')[0]);
+  const days = [];
+  state.slots.forEach(s => { const k = dayKey(s); if (!days.some(d => d.k === k)) days.push({ k, d:s, n:0 }); days.find(d => d.k === k).n++; });
+  const today = state.slots.filter(s => dayKey(s) === state.slotDay);
+  $('#bookWrap').innerHTML = `
+    <div class="book-head"><h3>Pick a time with ${first}</h3><span class="tzl">${state.minutes}-minute call · times in your time zone (${esc(tzName())})</span></div>
+    ${msg ? `<div class="slot-msg">${msg}</div>` : ''}
+    <div class="days" role="tablist" aria-label="Day">${days.map(d => `
+      <button type="button" class="day ${d.k===state.slotDay?'on':''}" data-k="${d.k}" role="tab" aria-selected="${d.k===state.slotDay}">
+        <span class="dw">${d.d.toLocaleDateString([], { weekday:'short' })}</span>
+        <span class="dd">${d.d.getDate()}</span>
+        <span class="dm">${MONTHS[d.d.getMonth()]}</span></button>`).join('')}</div>
+    <div class="times">${today.map(s => `<button type="button" class="time ${state.slot && +state.slot===+s?'on':''}" data-t="${s.toISOString()}">${fmtTime(s)}</button>`).join('')}</div>
+    <div class="confirm" id="confirmBar" ${state.slot ? '' : 'hidden'}>
+      <p>${state.slot ? `<b>${state.slot.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })}</b> at <b>${fmtTime(state.slot)}</b> with ${esc(r.name)}` : ''}</p>
+      <button class="btn primary" type="button" id="confirmBtn">Confirm booking</button></div>`;
+  $$('#bookWrap .day').forEach(b => b.addEventListener('click', () => { state.slotDay = b.dataset.k; state.slot = null; renderSlots(); }));
+  $$('#bookWrap .time').forEach(b => b.addEventListener('click', () => { state.slot = new Date(b.dataset.t); renderSlots(); $('#confirmBar').scrollIntoView({ behavior:'smooth', block:'nearest' }); }));
+  $('#confirmBtn')?.addEventListener('click', confirmBooking);
 }
-function stopWatching(){ if (watchTimer){ clearInterval(watchTimer); watchTimer = null; } }
-async function manualCheck(){
-  const btn = $('#doneBtn'), msg = $('#finishMsg');
-  btn.disabled = true; btn.textContent = 'Checking…';
+async function confirmBooking(){
+  if (state.booking || !state.slot) return;
+  state.booking = true;
+  const btn = $('#confirmBtn'); btn.disabled = true; btn.textContent = 'Booking…';
   try {
-    const res = await call('checkBooking', state.leadId, { manual:true });
+    const res = await call('bookSlot', state.leadId, state.repKey, state.slot.toISOString());
     if (res && res.booked) return finish(res);
-    confirmTries++;
-    msg.innerHTML = confirmTries < 2
-      ? `We don't see your booking yet. Make sure you picked a time and pressed <b>Book</b> on the calendar, then try again.`
-      : `Still not showing on our side. If you got a confirmation email from Google Calendar, you're set. <button class="btn ghost" type="button" id="forceFinish" style="padding:0;font-size:13px;color:var(--blue)">Finish anyway →</button>`;
-    msg.classList.add('show');
-    $('#forceFinish')?.addEventListener('click', () => finish({ booked:false, rep: (REPS.find(x=>x.key===state.repKey)||{}).name, unconfirmed:true }));
+    state.booking = false; state.slot = null;
+    loadSlots(res && res.taken ? 'That time was just taken. Here are the latest open times.' : 'Something went wrong. Please pick a time again.');
   } catch(e){
-    msg.textContent = 'Could not check right now. Please try again in a moment.'; msg.classList.add('show');
-  } finally { btn.disabled = false; btn.textContent = "I've booked my call"; }
+    state.booking = false; btn.disabled = false; btn.textContent = 'Confirm booking';
+    const m = $('.slot-msg') || (() => { const d = document.createElement('div'); d.className = 'slot-msg'; $('#confirmBar').before(d); return d; })();
+    m.textContent = 'Could not book that time. Please try again. (' + (e.message || e) + ')';
+  }
 }
+function stopWatching(){} // kept for older calls
 
 /* ---------- step 4: booked ---------- */
 const STORE_KEY = 'p32-apply-booking';
@@ -676,7 +702,7 @@ function renderDone(b){
   $('#step4').innerHTML = `
     <div class="done-badge">✓ ${b.pending ? 'Application received' : 'Call booked'}</div>
     <h2>You're All Set</h2>
-    <p class="sub">${s ? `A calendar invite was sent to <b>${esc(b.email)}</b>. To change your time, use the reschedule link in that email.` : `We have your application. Watch <b>${esc(b.email)}</b> for next steps.`}</p>
+    <p class="sub">${s ? `A calendar invite with the meeting link was sent to <b>${esc(b.email)}</b>. Need a different time? Reply to that invite and we'll move it.` : `We have your application. Watch <b>${esc(b.email)}</b> for next steps.`}</p>
     ${meeting}
     <div class="recap">
       <div><small>Program</small>${esc(b.program)}</div>
