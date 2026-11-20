@@ -83,6 +83,15 @@
   .err-box{display:none;background:#FDECEC;color:var(--err);border-radius:10px;padding:12px 14px;font-size:14px;margin-bottom:14px}
 
   /* ---------- circuit ---------- */
+  .ages{background:var(--bg);border:1.5px solid transparent;border-radius:12px;padding:14px 16px;margin-bottom:22px;transition:border-color .15s}
+  .ages.bad{border-color:var(--err)}
+  .ages-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .ages-t{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--blue)}
+  .age-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .age{min-width:64px;min-height:44px;border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:8px 16px;font-family:"Barlow Condensed",Inter,sans-serif;font-weight:800;font-size:19px;color:var(--navy);cursor:pointer;transition:all .15s}
+  .age:hover{border-color:#A7C8EA}
+  .age.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .age:focus-visible{outline:3px solid var(--blue-2);outline-offset:2px}
   .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:22px}
   .tab{border:1.5px solid var(--line);border-radius:12px;background:#fff;padding:12px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font:inherit;transition:all .15s}
   .tab img{height:48px;width:auto;filter:grayscale(1) opacity(.55);transition:filter .15s}
@@ -261,6 +270,30 @@
       </fieldset>
 
       <fieldset>
+        <legend>Your Teams</legend>
+        <div class="ages" id="divWrap" style="margin-bottom:12px">
+          <div class="ages-h"><span class="ages-t">Boys or girls?</span><span class="fine">Pick one</span></div>
+          <div class="age-chips" role="radiogroup" aria-label="Boys or girls">
+            <button type="button" class="age div" data-d="Boys P32" role="radio" aria-checked="false">Boys P32</button>
+            <button type="button" class="age div" data-d="Lady P32" role="radio" aria-checked="false">Lady P32</button>
+          </div>
+          <div class="hint">Pick Boys P32 or Lady P32</div>
+        </div>
+        <div class="ages" id="agesWrap" style="margin-bottom:0">
+          <div class="ages-h"><span class="ages-t">Age groups</span><span class="fine">Select all that apply</span></div>
+          <div class="age-chips" role="group" aria-label="Age groups">
+            <button type="button" class="age" data-a="17U" aria-pressed="false">17U</button>
+            <button type="button" class="age" data-a="16U" aria-pressed="false">16U</button>
+            <button type="button" class="age" data-a="15U" aria-pressed="false">15U</button>
+            <button type="button" class="age" data-a="14U" aria-pressed="false">14U</button>
+            <button type="button" class="age" data-a="13U" aria-pressed="false">13U</button>
+            <button type="button" class="age" data-a="12U" aria-pressed="false">12U</button>
+          </div>
+          <div class="hint">Pick at least one age group</div>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend>Contact &amp; program</legend>
         <div class="grid">
           <div class="c3" data-req><label class="f" for="contactName">Your full name</label><input id="contactName" name="contactName" autocomplete="name"><div class="hint">Enter your name</div></div>
@@ -298,7 +331,7 @@
   <!-- STEP 2 -->
   <section class="card step" id="step2">
     <h2>2027 Circuit Structure</h2>
-    <p class="sub">Here are the required events for your league and the regional stops you choose from. Pick your regionals to continue.</p>
+    <p class="sub">See the required events for your league and pick your regional stops.</p>
 
 
     <div class="tabs" id="tabs">
@@ -371,7 +404,7 @@ const $$ = s => Array.from(document.querySelectorAll(s));
 const byId = Object.fromEntries(EVENTS.map(e => [e.id, e]));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-const state = { leadId:null, booking:null, leagues:new Set(), view:'P32', picks:{P32:new Set(),E32:new Set(),JR:new Set()}, data:null };
+const state = { leadId:null, booking:null, division:'', ages:new Set(), leagues:new Set(), view:'P32', picks:{P32:new Set(),E32:new Set(),JR:new Set()}, data:null };
 const chosen = () => ORDER.filter(l => state.leagues.has(l));
 const complete = l => state.picks[l].size >= LEAGUES[l].regionals;
 const pickList = l => EVENTS.filter(e => state.picks[l].has(e.id));
@@ -436,9 +469,26 @@ $('#phone').addEventListener('input', e => {
   e.target.value = e.target.value.trim().replace(/^https?:\/\/(www\.)?(x|twitter|instagram)\.com\//i,'').replace(/[\/?].*$/,'').replace(/^@/,'');
 }));
 
+/* Boys / Lady P32 (pick one) and age groups (any combination) */
+$$('.age.div').forEach(b => b.addEventListener('click', () => {
+  state.division = b.dataset.d;
+  $$('.age.div').forEach(x => { const on = x.dataset.d === state.division; x.classList.toggle('on', on); x.setAttribute('aria-checked', on); });
+  $('#divWrap').classList.remove('bad');
+}));
+const AGES = ['17U','16U','15U','14U','13U','12U'];
+const ageList = () => AGES.filter(a => state.ages.has(a));
+$$('.age[data-a]').forEach(b => b.addEventListener('click', () => {
+  const a = b.dataset.a;
+  state.ages.has(a) ? state.ages.delete(a) : state.ages.add(a);
+  b.classList.toggle('on', state.ages.has(a)); b.setAttribute('aria-pressed', state.ages.has(a));
+  $('#agesWrap').classList.remove('bad');
+}));
+
 function validate(){
   let first = null;
   if (!state.leagues.size){ $('#leagueWrap').classList.add('bad'); first = $('.lp'); }
+  if (!state.division){ $('#divWrap').classList.add('bad'); first = first || $('.age.div'); }
+  if (!state.ages.size){ $('#agesWrap').classList.add('bad'); first = first || $('.age[data-a]'); }
   $$('#intake [data-req]').forEach(w => {
     const inp = w.querySelector('input,select'); const v = inp.value.trim();
     let ok = !!v;
@@ -462,6 +512,8 @@ async function handleSubmit(){
   const f = new FormData($('#intake'));
   const data = Object.fromEntries(f.entries());
   data.leagues = chosen().map(l => LEAGUES[l].label);
+  data.division = state.division;
+  data.ageGroups = ageList();
   state.data = data;
 
   const btn = $('#submitBtn'); btn.disabled = true; btn.textContent = 'Saving…';
@@ -564,7 +616,9 @@ $('#toStep3').addEventListener('click', () => {
 });
 function selectionPayload(extra){
   return Object.assign({
-    regionals: chosen().map(l => `${LEAGUES[l].label}: ` + pickList(l).map(e => `${e.name} (${e.loc})`).join(', '))
+    regionals: chosen().map(l => `${LEAGUES[l].label}: ` + pickList(l).map(e => `${e.name} (${e.loc})`).join(', ')),
+    ageGroups: ageList(),
+    division: state.division
   }, extra || {});
 }
 
@@ -582,6 +636,8 @@ function renderBooking(){
   $('#recap').innerHTML = `
     <div><small>Program</small>${esc(d.programName)}</div>
     <div><small>Contact</small>${esc(d.contactName)} · ${esc(d.phone)}</div>
+    <div><small>Teams</small>${esc(state.division)}</div>
+    <div><small>Age groups</small>${esc(ageList().join(', '))}</div>
     ${ls.map(l => `<div><small>${LEAGUES[l].label} regionals</small>${esc(pickList(l).map(e => e.name + ' · ' + e.loc.replace(/ \(.*\)/,'')).join(', '))}</div>`).join('')}`;
   const card = r => `<button type="button" class="rep ${state.repKey===r.key?'on':''}" data-k="${r.key}" aria-pressed="${state.repKey===r.key}">
       <span class="av">${r.name.split(' ').map(w=>w[0]).join('')}</span>
@@ -676,7 +732,7 @@ function finish(res){
   const done = {
     leadId: state.leadId, rep: res.rep || '', start: res.start || '', end: res.end || '', meet: res.meet || '',
     pending: !!res.pending, unconfirmed: !!res.unconfirmed,
-    program: d.programName, contact: d.contactName, email: d.email, phone: res.phone || '',
+    program: d.programName, contact: d.contactName, email: d.email, phone: res.phone || '', division: state.division, ages: ageList(),
     leagues: chosen().map(l => ({ label: LEAGUES[l].label, picks: pickList(l).map(e => e.name + ' · ' + e.loc.replace(/ \(.*\)/,'')) })),
     savedAt: Date.now()
   };
@@ -707,6 +763,8 @@ function renderDone(b){
     <div class="recap">
       <div><small>Program</small>${esc(b.program)}</div>
       <div><small>Contact</small>${esc(b.contact)}${b.phone ? ' · ' + esc(b.phone) : ''}</div>
+      ${b.division ? `<div><small>Teams</small>${esc(b.division)}</div>` : ''}
+      ${(b.ages||[]).length ? `<div><small>Age groups</small>${esc(b.ages.join(', '))}</div>` : ''}
       ${(b.leagues||[]).map(l => `<div><small>${esc(l.label)} regionals</small>${esc(l.picks.join(', '))}</div>`).join('')}
     </div>
     <div class="sec-h3">What happens next</div>
